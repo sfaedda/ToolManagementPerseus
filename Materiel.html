@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratory Material Management</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .section {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button:hover {
+      cursor: pointer;
+      background-color: #5b6bfb;
+      color: white;
+    }
+    .material-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .material-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 style="text-align:center;">Laboratory Material Management</h1>
+
+    <!-- Add Material Section -->
+    <div class="section">
+      <h2>Add Material</h2>
+      <input type="text" id="newMaterialName" placeholder="Material Name" />
+      <input type="number" id="newMaterialQuantity" placeholder="Quantity" min="1" />
+      <button onclick="addMaterial()">Add Material</button>
+    </div>
+
+    <!-- Material List Section -->
+    <div class="section">
+      <h2>Material List</h2>
+      <input type="text" id="searchQuery" placeholder="Search Material" onkeyup="searchMaterial()" />
+      <ul id="materialList" class="material-list"></ul>
+    </div>
+
+    <!-- Loan Material Section -->
+    <div class="section" id="loanSection" style="display:none;">
+      <h2>Borrow Material</h2>
+      <label for="loanQuantity">Quantity to Borrow:</label>
+      <input type="number" id="loanQuantity" min="1" />
+      <label for="borrowerName">Borrower Name:</label>
+      <input type="text" id="borrowerName" />
+      <label for="startDate">Start Date:</label>
+      <input type="date" id="startDate" />
+      <label for="endDate">End Date:</label>
+      <input type="date" id="endDate" />
+      <button onclick="confirmLoan()">Confirm Loan</button>
+    </div>
+
+    <!-- Current Loans Section -->
+    <div class="section">
+      <h2>Current Loans</h2>
+      <ul id="loanList" class="material-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    let materials = JSON.parse(localStorage.getItem('materials') || '[]');
+    let loans = JSON.parse(localStorage.getItem('loans') || '[]');
+    let selectedMaterialForLoan = null;
+
+    // Function to render materials
+    function renderMaterials() {
+      const materialList = document.getElementById('materialList');
+      materialList.innerHTML = '';
+      materials.forEach(material => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${material.name} - Available: ${material.availableQuantity} / ${material.totalQuantity}</span>
+          <button onclick="selectMaterialForLoan(${material.id})">Borrow</button>
+        `;
+        materialList.appendChild(li);
+      });
+    }
+
+    // Add Material
+    function addMaterial() {
+      const name = document.getElementById('newMaterialName').value;
+      const quantity = parseInt(document.getElementById('newMaterialQuantity').value);
+
+      if (name.trim() === '' || isNaN(quantity) || quantity <= 0) return;
+
+      const newMaterial = {
+        id: Date.now(),
+        name: name,
+        totalQuantity: quantity,
+        availableQuantity: quantity
+      };
+
+      materials.push(newMaterial);
+      localStorage.setItem('materials', JSON.stringify(materials));
+      renderMaterials();
+
+      document.getElementById('newMaterialName').value = '';
+      document.getElementById('newMaterialQuantity').value = '';
+    }
+
+    // Select material for loan
+    function selectMaterialForLoan(materialId) {
+      selectedMaterialForLoan = materials.find(m => m.id === materialId);
+      if (selectedMaterialForLoan) {
+        document.getElementById('loanSection').style.display = 'block';
+      }
+    }
+
+    // Confirm loan
+    function confirmLoan() {
+      const quantity = parseInt(document.getElementById('loanQuantity').value);
+      const borrowerName = document.getElementById('borrowerName').value;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      if (!selectedMaterialForLoan || quantity <= 0 || quantity > selectedMaterialForLoan.availableQuantity ||
+          borrowerName.trim() === '' || !startDate || !endDate) {
+        alert('Invalid loan data');
+        return;
+      }
+
+      const newLoan = {
+        id: Date.now(),
+        materialId: selectedMaterialForLoan.id,
+        borrowerName: borrowerName,
+        quantity: quantity,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate)
+      };
+
+      loans.push(newLoan);
+      localStorage.setItem('loans', JSON.stringify(loans));
+
+      selectedMaterialForLoan.availableQuantity -= quantity;
+      localStorage.setItem('materials', JSON.stringify(materials));
+
+      // Reset form and hide loan section
+      document.getElementById('loanSection').style.display = 'none';
+      renderMaterials();
+      renderLoans();
+    }
+
+    // Render loans
+    function renderLoans() {
+      const loanList = document.getElementById('loanList');
+      loanList.innerHTML = '';
+      loans.forEach(loan => {
+        const material = materials.find(m => m.id === loan.materialId);
+        if (material) {
+          const li = document.createElement('li');
+          li.innerHTML = `${material.name} - ${loan.quantity} borrowed by ${loan.borrowerName} (${loan.startDate.toLocaleDateString()} - ${loan.endDate.toLocaleDateString()})`;
+          loanList.appendChild(li);
+        }
+      });
+    }
+
+    // Search materials
+    function searchMaterial() {
+      const query = document.getElementById('searchQuery').value.toLowerCase();
+      const filteredMaterials = materials.filter(m => m.name.toLowerCase().includes(query));
+      const materialList = document.getElementById('materialList');
+      materialList.innerHTML = '';
+      filteredMaterials.forEach(material => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${material.name} - Available: ${material.availableQuantity} / ${material.totalQuantity}</span>
+          <button onclick="selectMaterialForLoan(${material.id})">Borrow</button>
+        `;
+        materialList.appendChild(li);
+      });
+    }
+
+    // Initialize
+    renderMaterials();
+    renderLoans();
+  </script>
+</body>
+</html>
